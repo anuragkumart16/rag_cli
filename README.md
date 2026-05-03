@@ -1,17 +1,18 @@
 # RAG CLI - Retrieval-Augmented Generation Command Line Interface
 
-A Node.js CLI application that implements Retrieval-Augmented Generation (RAG) using Ollama for local embeddings and cosine similarity for semantic search. This project allows you to search through a document by finding semantically similar text chunks based on natural language queries.
+A Node.js CLI application that implements Retrieval-Augmented Generation (RAG) using Ollama for local embeddings, cosine similarity for semantic search, and Groq for intelligent query answering. This project allows you to search through a document by finding semantically similar text chunks and generating contextual answers using an LLM.
 
 ## Project Overview
 
-This project demonstrates a complete RAG pipeline:
+This project demonstrates a complete RAG pipeline with LLM integration:
 
 1. **Document Loading**: Reads text from a file (`notes.txt`)
 2. **Chunking**: Splits the document into overlapping chunks for better context
 3. **Embedding Generation**: Converts each chunk into a vector embedding using Ollama
 4. **Query Processing**: Converts user queries into embeddings
 5. **Similarity Matching**: Uses cosine similarity to find the most relevant chunks
-6. **Results**: Returns the top-K most similar chunks to the query
+6. **Context Retrieval**: Retrieves the top-K most similar chunks
+7. **LLM Generation**: Uses Groq to generate intelligent, context-aware answers based on retrieved chunks
 
 ## Architecture
 
@@ -21,6 +22,8 @@ This project demonstrates a complete RAG pipeline:
 src/
 ├── index.ts                 # Main entry point - orchestrates the RAG pipeline
 ├── handleInput.ts           # Processes user queries and generates embeddings
+├── services/
+│   └── grok.service.ts      # Groq LLM integration for answer generation
 └── utils/
     ├── readFile.utils.ts    # Reads text files from disk
     ├── chunks.utils.ts      # Splits documents into chunks
@@ -94,6 +97,100 @@ The embedding generation has two main functions:
 }
 ```
 
+## Groq Integration
+
+### What is Groq?
+
+Groq is a cloud-based LLM API provider that offers fast, cost-effective access to advanced language models. In this project, Groq is used to generate intelligent, context-aware answers by processing the retrieved document chunks and the user's query.
+
+### Why Groq?
+
+- **Speed**: Groq's inference engine provides extremely fast response times
+- **Cost-effective**: Competitive pricing for API calls
+- **High-quality models**: Access to powerful LLM models like `openai/gpt-oss-20b`
+- **Easy integration**: Simple REST API with SDK support
+- **Stateless**: No need to manage model serving infrastructure
+
+### Setup Instructions
+
+1. **Get a Groq API Key**
+   - Sign up at [console.groq.com](https://console.groq.com)
+   - Navigate to API keys section and create a new key
+   - Copy your API key
+
+2. **Set Environment Variable**
+   Create a `.env` file in the project root:
+   ```
+   GROQ_API_KEY=your_groq_api_key_here
+   ```
+
+3. **Install Dependencies**
+   The `groq-sdk` is already in `package.json`, just run:
+   ```bash
+   npm install
+   ```
+
+### How Groq Integration Works
+
+**File**: `src/services/grok.service.ts`
+
+The Groq service provides LLM-powered answer generation:
+
+#### `getGroqClient(): Groq`
+- Initializes the Groq client lazily (only when needed)
+- Uses the `GROQ_API_KEY` environment variable
+- Returns a singleton instance to avoid multiple client initializations
+
+#### `getGroqChatCompletion(prompt: string)`
+- Sends the constructed prompt to Groq's API
+- Uses the `openai/gpt-oss-20b` model
+- The prompt includes:
+  - The original user query
+  - The top K most similar document chunks (context)
+  - Instructions to answer based on the provided context
+
+```typescript
+// Example prompt structure:
+const prompt = `
+You are a helpful assistant. Use the following chunks of information 
+to answer the question: How does retrieval work?
+
+Chunk 1: Retrieval is the process of finding relevant information...
+Chunk 2: Document retrieval systems use embeddings...
+Chunk 3: Similarity metrics help identify related content...
+`
+```
+
+### Response Handling
+
+Groq returns a structured response containing:
+- The generated answer text
+- Model metadata
+- Token usage information
+
+The answer is extracted and displayed to the user:
+```typescript
+chatCompletion.choices[0]?.message?.content || ""
+```
+
+### The Complete RAG + LLM Flow
+
+1. User provides a query (e.g., "How does retrieval work?")
+2. Query is embedded using Ollama's `nomic-embed-text`
+3. Cosine similarity finds top 3 most relevant chunks
+4. Top chunks are combined into a context string
+5. Groq LLM generates an answer using the context
+6. Answer is returned to the user
+
+This combination allows the system to provide answers grounded in the actual document content, while leveraging Groq's advanced language understanding capabilities.
+
+### API Rate Limits and Quotas
+
+- Groq provides different quotas based on your plan
+- Check your usage in the [Groq Console](https://console.groq.com)
+- Free tier includes generous rate limits for testing and development
+- Consider implementing caching to reduce API calls for repeated queries
+
 ## How the RAG Pipeline Works
 
 ### Step 1: Document Reading (`readFile.utils.ts`)
@@ -141,15 +238,21 @@ const similarities = embeddings.map(embedding =>
 
 ### Step 6: Retrieve Top Results
 ```typescript
-const topK = 3
-const topKIndices = similarities
-  .map((similarity, index) => ({ similarity, index }))
-  .sort((a, b) => b.similarity - a.similarity)
-  .slice(0, topK)
+const topKchunks = topKIndices.map(index => chunks[index]).join("\n---\n")
 ```
 - Sorts similarities in descending order
 - Extracts the top 3 most similar chunks
-- Returns the original text along with similarity scores
+- Combines them into a context string for the LLM
+
+### Step 7: Generate Answer with Groq (`services/grok.service.ts`)
+```typescript
+const prompt = `You are a helpful assistant. Use the following chunks...`
+main(prompt)
+```
+- Constructs a prompt with the query and retrieved chunks
+- Sends to Groq API for intelligent answer generation
+- Groq processes the context and generates a relevant, grounded response
+- Results are displayed to the user
 
 ## Installation & Usage
 
@@ -157,6 +260,7 @@ const topKIndices = similarities
 - Node.js (v18+)
 - TypeScript
 - Ollama installed and running
+- Groq API key (get it free from [console.groq.com](https://console.groq.com))
 
 ### Install Dependencies
 ```bash
@@ -174,30 +278,41 @@ This command:
 
 ### Example Workflow
 
-1. Make sure Ollama is running:
+1. **Set up Groq API Key**
+   ```bash
+   echo 'GROQ_API_KEY=your_api_key_here' > .env
+   ```
+
+2. Make sure Ollama is running:
    ```bash
    brew services start ollama
    ```
 
-2. Ensure the `nomic-embed-text` model is available:
+3. Ensure the `nomic-embed-text` model is available:
    ```bash
    ollama pull nomic-embed-text
    ```
 
-3. Place your document in `notes.txt`
+4. Place your document in `notes.txt`
 
-4. Run the application:
+5. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+6. Run the application:
    ```bash
    npm start
    ```
 
-5. View the top 3 most semantically similar chunks to your query
+7. View the generated answer based on your document and query
 
 ## Key Technologies
 
 - **TypeScript**: Type-safe JavaScript for better code quality
 - **Ollama**: Local embedding generation
 - **nomic-embed-text**: Efficient 768-dimensional embedding model
+- **Groq**: Fast LLM API for intelligent answer generation
 - **Cosine Similarity**: Vector comparison algorithm
 - **Node.js**: Runtime environment
 
@@ -211,8 +326,12 @@ This command:
 ## Future Enhancements
 
 - Support for different embedding models
+- Support for different Groq models (e.g., mixtral-8x7b)
 - Batch processing for large documents
 - Caching of embeddings to avoid recomputation
-- Interactive CLI for multiple queries
+- Caching of Groq API responses for repeated queries
+- Interactive CLI for multiple queries in one session
 - Support for multiple document formats (PDF, DOCX, etc.)
 - Fine-tuning embeddings for domain-specific use cases
+- Streaming responses from Groq for faster user feedback
+- Evaluation metrics for answer quality
