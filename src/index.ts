@@ -1,8 +1,12 @@
+import dotenv from 'dotenv'
+dotenv.config()
 import FileReader from "./utils/readFile.utils.js"
 import createChunks from "./utils/chunks.utils.js"
 import generateEmbeddings from "./utils/embeddings.utils.js"
 import handleInput from "./handleInput.js"
 import cosineSimilarity from "./utils/cosineSimilarity.utils.js"
+import { main } from './services/grok.service.js'
+
 
 const fileContents = FileReader.readTxtFile('notes.txt')
 
@@ -23,10 +27,11 @@ const topKIndices = similarities
     .slice(0, topK)
     .map(item => item.index)
 
-console.log("Top K similar chunks:")
-topKIndices.forEach(index => {
-    console.log(`Chunk: ${chunks[index]}, Similarity: ${similarities[index]}`)
-})
+const topKchunks = topKIndices.map(index => chunks[index]).join("\n---\n")
+
+const prompt = `You are a helpful assistant. Use the following chunks of information to answer the question: ${query}\n\n${topKchunks}` 
+
+main(prompt)
 
 
 
