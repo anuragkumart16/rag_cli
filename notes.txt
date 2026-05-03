@@ -1,0 +1,11 @@
+Retrieval-Augmented Generation (RAG) is a technique used in AI systems to improve the accuracy and reliability of responses. Instead of relying only on the model's internal knowledge, RAG systems retrieve relevant information from external data sources before generating an answer.
+
+A typical RAG system consists of three main components: ingestion, retrieval, and generation. During ingestion, documents are processed, split into smaller chunks, and converted into vector embeddings. These embeddings represent the semantic meaning of the text.
+
+During retrieval, a user query is also converted into an embedding. The system then compares this query embedding with stored embeddings and selects the most relevant chunks using similarity search.
+
+Finally, in the generation step, the retrieved chunks are passed to a language model along with the user query. The model uses this context to generate a more accurate and grounded response.
+
+Chunking plays a crucial role in RAG systems. If chunks are too large, retrieval becomes less precise. If chunks are too small, important context may be lost. Overlapping chunks help preserve context across boundaries.
+
+RAG systems are widely used in applications like document search, chatbots, knowledge assistants, and question-answering systems.
