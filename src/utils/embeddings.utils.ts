@@ -25,3 +25,5 @@ export default function generateEmbeddings(chunks:string[]):Promise<number[][]>{
     const embeddingPromises = chunks.map(chunk => generateOneEmbedding(chunk))
     return Promise.all(embeddingPromises)
 }
+
+
